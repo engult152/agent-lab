@@ -2,6 +2,7 @@
 
 基于 RAG 的本地知识库助手：把自己的文档变成可对话的资料库。**回答带出处，查不到就说不知道。**
 🔗 **在线体验**：https://agent-lab-fcqjtemgvcdmsehyskgwqm.streamlit.app/
+![demo](docs/demo.png)
 
 
 ## 功能
