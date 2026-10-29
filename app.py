@@ -15,6 +15,15 @@ except Exception:
 import main  # noqa: E402
 
 st.set_page_config(page_title="笔记助手", page_icon="📚", layout="centered")
+
+_pwd = os.environ.get("APP_PASSWORD", "")
+if _pwd and not st.session_state.get("ok"):
+    st.title("🔒 需要密码")
+    if st.text_input("访问密码", type="password") == _pwd:
+        st.session_state["ok"] = True
+        st.rerun()
+    st.stop()
+
 st.title("📚 我的笔记助手")
 st.caption("基于 docs 目录的语义检索，回答会标明出处")
 
@@ -91,6 +100,23 @@ def run(messages, placeholder, max_steps=8):
 
     return "（达到最大步数，未得出最终答案）", trace
 
+
+
+# app.py 开头，SYSTEM 之前
+def check_password():
+    pwd = os.environ.get("APP_PASSWORD", "")
+    if not pwd:
+        return True
+    if st.session_state.get("ok"):
+        return True
+    st.title("🔒 需要密码")
+    if st.text_input("密码", type="password") == pwd:
+        st.session_state.ok = True
+        st.rerun()
+    return False
+
+if not check_password():
+    st.stop()
 
 SYSTEM = (
     "你是一个助手。回答关于用户资料的问题时，必须先调用 search_docs 检索，"
