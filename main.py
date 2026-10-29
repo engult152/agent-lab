@@ -37,11 +37,18 @@ client = chat_client  # app.py 里用到
 
 
 # ---------------- 文档与切块 ----------------
+
+def _normalize(text: str) -> str:
+    """中文之间的换行直接去掉，其余空白压成单空格"""
+    text = re.sub(r"(?<=[\u4e00-\u9fff])\s*\n\s*(?=[\u4e00-\u9fff])", "", text)
+    return re.sub(r"\s+", " ", text).strip()
+
 def _pdf_pieces(path: Path):
     reader = PdfReader(str(path))
     text = " ".join(
         " ".join((p.extract_text() or "").split()) for p in reader.pages
     )
+    text = _normalize(text)
     return [text[i : i + 400] for i in range(0, len(text), 320)]
 
 
@@ -61,7 +68,7 @@ def _markdown_pieces(path: Path):
         else:
             body = p
 
-        body = re.sub(r"<!--.*?-->", "", body).strip()
+            body = _normalize(re.sub(r"<!--.*?-->", "", body))
         if len(body) < 40:
             continue
 
@@ -132,6 +139,24 @@ def _load_vectors():
 
     _vectors = [(c[0], c[1], c[2], store[k]) for c, k in zip(chunks, keys)]
 
+_STOP = [
+    "我想知道", "请问", "帮我", "一下", "怎么样", "怎么办", "为什么",
+    "是什么", "怎么", "什么", "之后", "然后", "还有", "那个", "这个",
+    "哪个", "是不是", "该干嘛", "干嘛", "在哪", "哪里", "能不能",
+    "可不可以", "比较好", "呢", "吗", "啊", "吧", "我在", "那边",
+]
+
+
+def _rewrite(q: str) -> str:
+    """长问题压成关键词；短问题原样返回"""
+    if len(q) <= 25:
+        return q
+    s = q
+    for w in _STOP:
+        s = s.replace(w, " ")
+    s = re.sub(r"[，。！？、；：（）《》“”‘’]", " ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s if len(s) >= 4 else q
 
 def search_docs(query: str, top_k: int = TOP_K) -> str:
     """在 docs 目录里按语义检索相关段落"""
@@ -139,7 +164,7 @@ def search_docs(query: str, top_k: int = TOP_K) -> str:
     if not _vectors:
         return "docs 目录里没有可检索的内容"
 
-    qv = emb_client.embeddings.create(model=EMB_MODEL, input=[query]).data[0].embedding
+    qv = emb_client.embeddings.create(model=EMB_MODEL, input=[_rewrite(query)]).data[0].embedding
     ranked = sorted(_vectors, key=lambda v: -_cos(qv, v[3]))
     top = [r for r in ranked[:top_k] if _cos(qv, r[3]) > MIN_SCORE]
 

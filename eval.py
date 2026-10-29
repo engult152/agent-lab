@@ -1,6 +1,7 @@
 ﻿import json
 import sys
 from pathlib import Path
+import re
 
 import main
 
@@ -21,7 +22,8 @@ for c in cases:
 
     if c["must"]:
         pos_all += 1
-        ok = all(m in got for m in c["must"])
+        norm = lambda s: re.sub(r"\s+", "", s)
+        ok = all(norm(m) in norm(got) for m in c["must"])
         pos_ok += ok
         kind = "正例"
     else:
