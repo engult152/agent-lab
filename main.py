@@ -22,7 +22,7 @@ CACHE = BASE / ".cache" / "vectors.json"
 CHAT_MODEL = "deepseek-chat"
 EMB_MODEL = "BAAI/bge-m3"
 TOP_K = 3
-MIN_SCORE = 0.45
+MIN_SCORE = 0.60
 
 chat_client = OpenAI(
     api_key=os.environ["DEEPSEEK_API_KEY"],
@@ -53,15 +53,20 @@ def _markdown_pieces(path: Path):
         p = para.strip()
         if not p:
             continue
-        # 标题只作为上下文，不单独成块
+
         if p.startswith("#"):
-            heading = p.lstrip("#").strip()
+            first, _, rest = p.partition("\n")
+            heading = first.lstrip("#").strip()
+            body = rest.strip()
+        else:
+            body = p
+
+        body = re.sub(r"<!--.*?-->", "", body).strip()
+        if len(body) < 40:
             continue
-        # 去掉页码注释，再看有没有实际内容
-        p = re.sub(r"<!--.*?-->", "", p).strip()
-        if len(p) < 40:
-            continue
-        pieces.append(heading + "｜" + p if heading else p)
+
+        pieces.append(heading + "｜" + body if heading else body)
+
     return pieces
 
 
@@ -279,3 +284,4 @@ def chat():
 
 if __name__ == "__main__":
     chat()
+
