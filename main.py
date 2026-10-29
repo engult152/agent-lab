@@ -342,8 +342,50 @@ def _load_vectors_cached():
 
 _load_vectors = _load_vectors_cached
 
+# ========== 带章节前缀的切块 ==========
+def _chunks_v2():
+    out = []
+    if not DOCS.is_dir():
+        return out
+    for f in sorted(DOCS.rglob("*")):
+        suffix = f.suffix.lower()
+        if suffix not in {".md", ".txt", ".pdf"}:
+            continue
+        try:
+            if suffix == ".pdf":
+                reader = PdfReader(str(f))
+                text = " ".join(
+                    " ".join((p.extract_text() or "").split()) for p in reader.pages
+                )
+                for i, p in enumerate(text[j : j + 400] for j in range(0, len(text), 320)):
+                    if len(p.strip()) > 20:
+                        out.append((f.name, i, p.strip()))
+            else:
+                raw = f.read_text(encoding="utf-8", errors="replace")
+                heading = ""
+                for i, para in enumerate(raw.split("\n\n")):
+                    p = para.strip()
+                    if not p:
+                        continue
+                    if p.startswith("#"):
+                        heading = p.lstrip("#").strip()
+                        body = p
+                    elif heading:
+                        body = heading + "｜" + p
+                    else:
+                        body = p
+                    if len(body) > 20:
+                        out.append((f.name, i, body))
+        except Exception as e:
+            print("跳过", f.name, ":", e)
+    return out
+
+
+_chunks = _chunks_v2
+
 if __name__ == "__main__":
     chat()
+
 
 
 
