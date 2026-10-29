@@ -2,7 +2,17 @@
 import time
 
 import streamlit as st
-import main
+import os
+
+import streamlit as st
+
+try:
+    for _k, _v in st.secrets.items():
+        os.environ.setdefault(_k, str(_v))
+except Exception:
+    pass
+
+import main  # noqa: E402
 
 st.set_page_config(page_title="笔记助手", page_icon="📚", layout="centered")
 st.title("📚 我的笔记助手")
