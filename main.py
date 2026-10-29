@@ -56,6 +56,7 @@ def _markdown_pieces(path: Path):
     raw = path.read_text(encoding="utf-8", errors="replace")
     heading = ""
     pieces = []
+
     for para in raw.split("\n\n"):
         p = para.strip()
         if not p:
@@ -68,11 +69,19 @@ def _markdown_pieces(path: Path):
         else:
             body = p
 
-            body = _normalize(re.sub(r"<!--.*?-->", "", body))
+        body = _normalize(re.sub(r"<!--.*?-->", "", body))
         if len(body) < 40:
             continue
 
-        pieces.append(heading + "｜" + body if heading else body)
+        prefix = (heading + "｜") if heading else ""
+
+        if len(body) <= 400:
+            pieces.append(prefix + body)
+        else:
+            for i in range(0, len(body), 320):
+                seg = body[i : i + 400].strip()
+                if len(seg) > 40:
+                    pieces.append(prefix + seg)
 
     return pieces
 
