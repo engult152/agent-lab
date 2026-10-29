@@ -269,7 +269,82 @@ def search_docs_v2(query: str, top_k: int = 3) -> str:
 
 REGISTRY["search_docs"] = search_docs_v2
 
+# ========== PDF 支持 ==========
+from pypdf import PdfReader
+
+
+def _chunks_pdf():
+    out = []
+    if not DOCS.is_dir():
+        return out
+    for f in sorted(DOCS.rglob("*")):
+        suffix = f.suffix.lower()
+        if suffix not in {".md", ".txt", ".pdf"}:
+            continue
+        try:
+            if suffix == ".pdf":
+                reader = PdfReader(str(f))
+                text = " ".join(
+                    " ".join((p.extract_text() or "").split()) for p in reader.pages
+                )
+                paras = [text[i : i + 400] for i in range(0, len(text), 320)]
+            else:
+                raw = f.read_text(encoding="utf-8", errors="replace")
+                paras = raw.split("\n\n")
+        except Exception as e:
+            print("跳过", f.name, ":", e)
+            continue
+        for i, para in enumerate(paras):
+            para = para.strip()
+            if len(para) > 20:
+                out.append((f.name, i, para))
+    return out
+
+
+_chunks = _chunks_pdf
+
+# ========== 向量缓存 ==========
+import hashlib
+
+CACHE = Path(__file__).resolve().parent / ".cache" / "vectors.json"
+
+
+def _load_vectors_cached():
+    global _vectors
+    if _vectors:
+        return
+    chunks = _chunks()
+    if not chunks:
+        return
+
+    CACHE.parent.mkdir(exist_ok=True)
+    try:
+        store = json.loads(CACHE.read_text(encoding="utf-8"))
+    except Exception:
+        store = {}
+
+    keys = [hashlib.md5(c[2].encode("utf-8")).hexdigest() for c in chunks]
+    todo = [(c, k) for c, k in zip(chunks, keys) if k not in store]
+
+    if todo:
+        resp = emb_client.embeddings.create(
+            model=EMB_MODEL, input=[c[2] for c, _ in todo]
+        )
+        for (c, k), d in zip(todo, resp.data):
+            store[k] = d.embedding
+        CACHE.write_text(json.dumps(store), encoding="utf-8")
+        print("新嵌入", len(todo), "段，缓存共", len(store), "段")
+    else:
+        print("全部命中缓存，", len(store), "段")
+
+    _vectors = [(c[0], c[1], c[2], store[k]) for c, k in zip(chunks, keys)]
+
+
+_load_vectors = _load_vectors_cached
+
 if __name__ == "__main__":
     chat()
+
+
 
 
