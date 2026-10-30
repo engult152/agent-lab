@@ -149,6 +149,20 @@ with st.sidebar:
             st.error("添加失败：" + str(e))
 
     st.divider()
+    with st.expander("知识库（点击展开）"):
+        counts = {}
+        for c in main._chunks():
+            counts[c[0]] = counts.get(c[0], 0) + 1
+        for i, (name, n) in enumerate(counts.items()):
+            col1, col2 = st.columns([6, 2])
+            col1.caption(name + " · " + str(n) + " 段")
+            if col2.button("删", key="del_" + str(i)):
+                try:
+                    (Path("docs") / name).unlink()
+                    main.reindex()
+                    st.rerun()
+                except Exception as e:
+                    st.error("删除失败：" + str(e))
     if st.button("新对话", use_container_width=True):
         st.session_state.sid = store.new_session()
         st.session_state.chat = []
