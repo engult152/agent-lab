@@ -39,6 +39,7 @@ def judge(q, ref, ans):
     prompt = f"问题：{q}\n\n【资料原文】\n{ref}\n\n【回答】\n{ans}"
     r = judge_client.chat.completions.create(
         model=JUDGE_MODEL,
+        timeout=60,
         messages=[
             {"role": "system", "content": JUDGE},
             {"role": "user", "content": prompt},

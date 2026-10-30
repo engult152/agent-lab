@@ -21,7 +21,7 @@ CACHE = BASE / ".cache" / "vectors.json"
 
 CHAT_MODEL = "deepseek-chat"
 EMB_MODEL = "BAAI/bge-m3"
-TOP_K = 3
+TOP_K = 5
 MIN_SCORE = 0.60
 
 chat_client = OpenAI(
@@ -432,6 +432,7 @@ def reindex():
     
 if __name__ == "__main__":
     chat()
+
 
 
 
