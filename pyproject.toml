@@ -1,10 +1,11 @@
-﻿[project]
+[project]
 name = "agent-lab"
 version = "0.1.0"
 description = "本地 RAG 知识库助手"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "libsql-client>=0.3.1",
     "openai>=3.41.0",
     "pymupdf>=2.0",
     "pypdf>=6.21.4",
