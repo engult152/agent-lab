@@ -48,7 +48,7 @@ def _init():
     DB.parent.mkdir(parents=True, exist_ok=True)
     _run(
         "CREATE TABLE IF NOT EXISTS sessions("
-        "id INTEGER PRIMARY KEY, title TEXT, created_at TEXT)"
+        "id INTEGER PRIMARY KEY, title TEXT, created_at TEXT, owner TEXT)"
     )
     _run(
         "CREATE TABLE IF NOT EXISTS messages("
@@ -56,22 +56,31 @@ def _init():
         "role TEXT, content TEXT, created_at TEXT)"
     )
     _run("CREATE TABLE IF NOT EXISTS usage(day TEXT PRIMARY KEY, n INTEGER)")
+    try:
+        _run("ALTER TABLE sessions ADD COLUMN owner TEXT")
+    except Exception:
+        pass
     _ready = True
 
 
-def new_session(title="新对话"):
+def new_session(title="新对话", owner=""):
     _init()
     sid = int(datetime.now().timestamp() * 1000)
     _run(
-        "INSERT INTO sessions(id, title, created_at) VALUES (?,?,?)",
-        (sid, title, _now()),
+        "INSERT INTO sessions(id, title, created_at, owner) VALUES (?,?,?,?)",
+        (sid, title, _now(), owner),
     )
     return sid
 
 
-def last_session_id():
+def last_session_id(owner=None):
     _init()
-    rows = _rows("SELECT id FROM sessions ORDER BY id DESC LIMIT 1")
+    if owner is None:
+        rows = _rows("SELECT id FROM sessions ORDER BY id DESC LIMIT 1")
+    else:
+        rows = _rows(
+            "SELECT id FROM sessions WHERE owner=? ORDER BY id DESC LIMIT 1", (owner,)
+        )
     return rows[0][0] if rows else None
 
 
@@ -95,10 +104,16 @@ def load_messages(sid):
     )
 
 
-def list_sessions(limit=10):
+def list_sessions(limit=10, owner=None):
     _init()
+    if owner is None:
+        return _rows(
+            "SELECT id, title, created_at FROM sessions ORDER BY id DESC LIMIT ?",
+            (limit,),
+        )
     return _rows(
-        "SELECT id, title, created_at FROM sessions ORDER BY id DESC LIMIT ?", (limit,)
+        "SELECT id, title, created_at FROM sessions WHERE owner=? ORDER BY id DESC LIMIT ?",
+        (owner, limit),
     )
 
 

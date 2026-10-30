@@ -1,7 +1,8 @@
-﻿
+
 from pathlib import Path
 import json
 import time
+import uuid
 
 import streamlit as st
 import os
@@ -128,8 +129,15 @@ if not check_password():
 
 SYSTEM = main.SYSTEM
 
+
+if "uid" not in st.session_state:
+    st.session_state.uid = st.query_params.get("u") or uuid.uuid4().hex[:8]
+    st.query_params["u"] = st.session_state.uid
+
 if "chat" not in st.session_state:
-    st.session_state.sid = store.last_session_id() or store.new_session()
+    st.session_state.sid = store.last_session_id(
+        owner=st.session_state.uid
+    ) or store.new_session(owner=st.session_state.uid)
     saved = store.load_messages(st.session_state.sid)
     st.session_state.chat = [{"role": r, "content": c} for r, c in saved]
     st.session_state.history = [{"role": "system", "content": SYSTEM}] + [
