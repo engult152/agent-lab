@@ -1,6 +1,7 @@
 ﻿"""agent-lab：一个能读你自己文档的本地 Agent"""
 
 import os
+import numpy as np
 import json
 import math
 import re
@@ -354,6 +355,7 @@ def _build_bm25():
         df.update(set(d))
     _bm["df"] = df
     _bm["docs"] = docs
+    _bm["tf"] = [collections.Counter(d) for d in docs]   # ← 新增
     _bm["len"] = [len(d) for d in docs]
     _bm["avgdl"] = sum(_bm["len"]) / max(1, len(docs))
     _bm["n"] = len(docs)
@@ -366,7 +368,7 @@ def _bm25_scores(query: str) -> list:
     n = _bm["n"]
     scores = []
     for i, d in enumerate(_bm["docs"]):
-        tf = collections.Counter(d)
+        tf = _bm["tf"][i]
         s = 0.0
         for t in qt:
             f = tf.get(t)
@@ -416,15 +418,44 @@ def _rerank(query, items, top_n):
             break
     return out
 
+
+_mat = None
+
+
+def _build_matrix():
+    """把所有段落向量拼成一个归一化矩阵，供矩阵乘法用"""
+    global _mat
+    if not _vectors:
+        _mat = None
+        return
+    arr = np.array([v[3] for v in _vectors], dtype="float64")
+    norms = np.linalg.norm(arr, axis=1, keepdims=True)
+    norms[norms == 0] = 1.0
+    _mat = arr / norms
+_qv_cache = {}
+
+
+def _query_vector(q: str):
+    """缓存查询向量，同一个问题第二次直接命中"""
+    if q in _qv_cache:
+        return _qv_cache[q]
+    v = emb_client.embeddings.create(model=EMB_MODEL, input=[q]).data[0].embedding
+    _qv_cache[q] = v
+    return v
+
 def search_docs_hybrid(query: str, top_k: int = TOP_K, pool: int = 20) -> str:
     _load_vectors()
     if not _vectors:
         return "docs 目录里没有可检索的内容"
 
     q = _rewrite(query)
-    qv = emb_client.embeddings.create(model=EMB_MODEL, input=[q]).data[0].embedding
+    qv = _query_vector(q)
 
-    cos = [_cos(qv, v[3]) for v in _vectors]
+    if _mat is None:
+        _build_matrix()
+    qv_np = np.array(qv, dtype="float64")
+    qv_np /= np.linalg.norm(qv_np) or 1.0
+    cos = (_mat @ qv_np).tolist()
     vec_rank = sorted(range(len(cos)), key=lambda i: -cos[i])[:pool]
 
     bm = _bm25_scores(q)
@@ -448,7 +479,9 @@ def search_docs_hybrid(query: str, top_k: int = TOP_K, pool: int = 20) -> str:
     if not cand:
         return "没有找到语义足够相关的内容"
 
-    picked = [i for i in cand[:top_k] if cos[i] >= FINAL_FLOOR] or cand[:top_k]
+    picked = [i for i in cand[:top_k] if cos[i] >= FINAL_FLOOR]
+    if not picked:
+        return "没有找到语义足够相关的内容"
 
     if USE_RERANK and len(cand) > 1:
         try:
@@ -476,8 +509,9 @@ REGISTRY["search_docs"] = search_docs_hybrid
 
 def reindex():
     """清空内存索引，下次检索时重建（新增/修改文档后调用）"""
-    global _vectors
+    global _vectors, _mat
     _vectors = []
+    _mat = None
     _bm["n"] = 0
 # ========== 章节浏览工具 ==========
 def outline() -> str:
@@ -614,6 +648,7 @@ SYSTEM = """你是一个助手，帮用户查他自己文档里的内容。
 if __name__ == "__main__":
     chat()
     
+
 
 
 
