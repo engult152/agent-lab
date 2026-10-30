@@ -134,6 +134,18 @@ if "uid" not in st.session_state:
     st.session_state.uid = st.query_params.get("u") or uuid.uuid4().hex[:8]
     st.query_params["u"] = st.session_state.uid
 
+
+if "restored" not in st.session_state:
+    st.session_state.restored = True
+    changed = False
+    for _name, _content in store.list_files(st.session_state.uid):
+        _p = Path("docs") / _name
+        if not _p.exists():
+            _p.write_text(_content, encoding="utf-8")
+            changed = True
+    if changed:
+        main.reindex()
+
 if "chat" not in st.session_state:
     st.session_state.sid = store.last_session_id(
         owner=st.session_state.uid
@@ -156,6 +168,14 @@ with st.sidebar:
         try:
             target = Path("docs") / up.name
             target.write_bytes(up.getbuffer())
+            if up.name.lower().endswith((".md", ".txt")):
+                store.save_file(
+                    st.session_state.uid,
+                    up.name,
+                    target.read_text(encoding="utf-8", errors="replace"),
+                )
+            else:
+                st.warning("PDF 暂不持久化，重启后需重新上传")
             main.reindex()
             st.success("已添加：" + up.name)
         except Exception as e:

@@ -56,6 +56,11 @@ def _init():
         "role TEXT, content TEXT, created_at TEXT)"
     )
     _run("CREATE TABLE IF NOT EXISTS usage(day TEXT PRIMARY KEY, n INTEGER)")
+    _run(
+        "CREATE TABLE IF NOT EXISTS files("
+        "owner TEXT, name TEXT, content TEXT, updated_at TEXT, "
+        "PRIMARY KEY(owner, name))"
+    )
     try:
         _run("ALTER TABLE sessions ADD COLUMN owner TEXT")
     except Exception:
@@ -132,3 +137,27 @@ def bump_usage():
         "ON CONFLICT(day) DO UPDATE SET n = n + 1",
         (today,),
     )
+
+def save_file(owner, name, content):
+    _init()
+    _run(
+        "CREATE TABLE IF NOT EXISTS files("
+        "owner TEXT, name TEXT, content TEXT, updated_at TEXT, "
+        "PRIMARY KEY(owner, name))"
+    )
+    _run(
+        "INSERT INTO files(owner, name, content, updated_at) VALUES (?,?,?,?) "
+        "ON CONFLICT(owner, name) DO UPDATE SET "
+        "content=excluded.content, updated_at=excluded.updated_at",
+        (owner, name, content, _now()),
+    )
+
+
+def list_files(owner):
+    _init()
+    return _rows("SELECT name, content FROM files WHERE owner=?", (owner,))
+
+
+def delete_file(owner, name):
+    _init()
+    _run("DELETE FROM files WHERE owner=? AND name=?", (owner, name))
