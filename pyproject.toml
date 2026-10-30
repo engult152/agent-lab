@@ -1,7 +1,7 @@
-[project]
+﻿[project]
 name = "agent-lab"
 version = "0.1.0"
-description = "Add your description here"
+description = "本地 RAG 知识库助手"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -12,13 +12,6 @@ dependencies = [
     "streamlit>=1.66.1",
 ]
 
-[project.scripts]
-agent-lab = "agent_lab:main"
-
 [[tool.uv.index]]
 url = "https://pypi.tuna.tsinghua.edu.cn/simple"
 default = true
-
-[build-system]
-requires = ["uv_build>=0.13.6,<0.14.0"]
-build-backend = "uv_build"
