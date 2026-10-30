@@ -1,4 +1,4 @@
-
+﻿
 from pathlib import Path
 import json
 import time
@@ -139,6 +139,7 @@ if "chat" not in st.session_state:
 with st.sidebar:
     st.subheader("状态")
     st.metric("文档段落", len(main._chunks()))
+    st.caption("今日已用 " + str(store.usage_today()) + " / 80")
     st.caption("修改 docs 里的文件后，重启页面即可生效")
 
     st.divider()
