@@ -15,6 +15,7 @@ except Exception:
     pass
 
 import main  # noqa: E402
+import store  # noqa: E402
 
 st.set_page_config(page_title="笔记助手", page_icon="📚", layout="centered")
 
@@ -127,13 +128,18 @@ SYSTEM = (
 )
 
 if "chat" not in st.session_state:
-    st.session_state.chat = []
-    st.session_state.history = [{"role": "system", "content": SYSTEM}]
+    st.session_state.sid = store.last_session_id() or store.new_session()
+    saved = store.load_messages(st.session_state.sid)
+    st.session_state.chat = [{"role": r, "content": c} for r, c in saved]
+    st.session_state.history = [{"role": "system", "content": SYSTEM}] + [
+        {"role": r, "content": c} for r, c in saved
+    ]
 
 with st.sidebar:
     st.subheader("状态")
     st.metric("文档段落", len(main._chunks()))
     st.caption("修改 docs 里的文件后，重启页面即可生效")
+
     st.divider()
     up = st.file_uploader("添加文档", type=["md", "txt", "pdf"])
     if up is not None:
@@ -144,6 +150,14 @@ with st.sidebar:
             st.success("已添加：" + up.name)
         except Exception as e:
             st.error("添加失败：" + str(e))
+
+    st.divider()
+    if st.button("新对话", use_container_width=True):
+        st.session_state.sid = store.new_session()
+        st.session_state.chat = []
+        st.session_state.history = [{"role": "system", "content": SYSTEM}]
+        st.rerun()
+
     if st.button("清空对话", use_container_width=True):
         st.session_state.chat = []
         st.session_state.history = [{"role": "system", "content": SYSTEM}]
@@ -175,3 +189,5 @@ if q:
         ph.markdown(reply)
 
     st.session_state.chat.append({"role": "assistant", "content": reply})
+    store.add_message(st.session_state.sid, "user", q)
+    store.add_message(st.session_state.sid, "assistant", reply)
