@@ -62,3 +62,22 @@ def list_sessions(limit=10):
             "SELECT id, title, created_at FROM sessions ORDER BY id DESC LIMIT ?",
             (limit,),
         ).fetchall()
+
+    
+def usage_today():
+    today = datetime.now().date().isoformat()
+    with _conn() as c:
+        c.execute("CREATE TABLE IF NOT EXISTS usage(day TEXT PRIMARY KEY, n INTEGER)")
+        row = c.execute("SELECT n FROM usage WHERE day = ?", (today,)).fetchone()
+        return row[0] if row else 0
+
+
+def bump_usage():
+    today = datetime.now().date().isoformat()
+    with _conn() as c:
+        c.execute("CREATE TABLE IF NOT EXISTS usage(day TEXT PRIMARY KEY, n INTEGER)")
+        c.execute(
+            "INSERT INTO usage(day, n) VALUES (?, 1) "
+            "ON CONFLICT(day) DO UPDATE SET n = n + 1",
+            (today,),
+        )

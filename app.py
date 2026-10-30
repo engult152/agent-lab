@@ -1,4 +1,4 @@
-﻿
+
 from pathlib import Path
 import json
 import time
@@ -196,6 +196,12 @@ for m in st.session_state.chat:
 q = st.chat_input("问点什么，比如：401 错误怎么排查？")
 
 if q:
+    DAILY_LIMIT = 80
+    if store.usage_today() >= DAILY_LIMIT:
+        st.error("今天的调用次数已用完（上限 " + str(DAILY_LIMIT) + " 次），明天再来。")
+        st.stop()
+    store.bump_usage()
+
     st.session_state.chat.append({"role": "user", "content": q})
     st.session_state.history.append({"role": "user", "content": q})
 
