@@ -413,9 +413,17 @@ def search_docs_hybrid(query: str, top_k: int = TOP_K, pool: int = 20) -> str:
     picked = [i for i in picked if cos[i] >= FINAL_FLOOR]
     if not picked:
         return "没有找到语义足够相关的内容"
-    return "\n\n".join(
+        best = max((cos[i] for i in picked), default=0.0)
+    body = "\n\n".join(
         f"【{_vectors[i][0]} 第{_vectors[i][1] + 1}段】{_vectors[i][2][:800]}" for i in picked
     )
+    if best < 0.65:
+        body = (
+            "（提示：本次检索置信度较低（最高 %.2f），可能没有覆盖到正确段落。"
+            "建议先用 grep_docs 用问题里的关键词定位章节，再用 read_section 读取那一节。）\n\n"
+            % best
+        ) + body
+    return body
 
 search_docs = search_docs_hybrid
 
@@ -550,6 +558,16 @@ SYSTEM = SYSTEM + (
     " 查不到时，先调用 grep_docs 用关键词定位它在哪一节，再用 read_section 读那一节，"
     "不要凭章节名猜。"
 )
+
+SYSTEM = """你是一个助手，帮用户查他自己文档里的内容。
+
+工作顺序（必须按这个顺序）：
+1. 任何技术问题（装环境、报错、配置、命令用法、游戏攻略）都必须先调用 search_docs。
+2. search_docs 的结果不足以回答时（典型是流程类问题，如「接下来该干嘛」「第几章怎么走」），
+   必须先调用 grep_docs，用问题里的关键词定位章节，再用 read_section 读取那一节。
+3. 只有上面三步都试过仍找不到，才说「资料里没有」，并用一句话说明你查过什么。
+
+回答要求：先给结论；不超过 200 字；只给要点，不复述原文；不要编造资料里没有的内容。"""
 if __name__ == "__main__":
     chat()
     
