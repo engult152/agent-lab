@@ -11,7 +11,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from openai import OpenAI
-from pypdf import PdfReader
+
 
 load_dotenv()
 
@@ -45,6 +45,8 @@ def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 def _pdf_pieces(path: Path):
+    from pypdf import PdfReader
+
     reader = PdfReader(str(path))
     text = " ".join(
         " ".join((p.extract_text() or "").split()) for p in reader.pages
