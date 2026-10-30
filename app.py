@@ -32,8 +32,12 @@ st.caption("基于 docs 目录的语义检索，回答会标明出处")
 
 
 def run(messages, placeholder, max_steps=8):
-    """流式版的 Agent 循环，返回 (回答, 工具调用记录)"""
+    """流式版 Agent 循环"""
     trace = []
+
+    # 只保留 system + 最近 12 条，防止上下文无限增长
+    if len(messages) > 13:
+        messages = [messages[0]] + messages[-12:]
 
     for _ in range(max_steps):
         stream = main.client.chat.completions.create(
