@@ -283,7 +283,7 @@ def reindex():
 def run_turn(messages, max_steps=8):
     for _ in range(max_steps):
         resp = client.chat.completions.create(
-            model=CHAT_MODEL, messages=messages, tools=TOOLS
+            model=CHAT_MODEL, messages=messages, tools=TOOLS, timeout=60
         )
         msg = resp.choices[0].message
         messages.append(msg.model_dump(exclude_none=True))
@@ -553,6 +553,7 @@ SYSTEM = SYSTEM + (
 if __name__ == "__main__":
     chat()
     
+
 
 
 
