@@ -95,6 +95,7 @@ def run(messages, placeholder, max_steps=8):
             except Exception as e:
                 result = "工具执行出错：" + str(e)
             trace.append((c["name"], args))
+            print("  [工具]", c["name"], args, flush=True)
             messages.append(
                 {"role": "tool", "tool_call_id": c["id"], "content": str(result)}
             )
@@ -121,11 +122,7 @@ def check_password():
 if not check_password():
     st.stop()
 
-SYSTEM = (
-    "你是一个助手。回答关于用户资料的问题时，必须先调用 search_docs 检索，"
-    "再基于检索结果回答；检索不到就直说不知道，不要编造。"
-    "回答时先给结论，只有确实存在多个不同可能时才列候选。"
-)
+SYSTEM = main.SYSTEM
 
 if "chat" not in st.session_state:
     st.session_state.sid = store.last_session_id() or store.new_session()

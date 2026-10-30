@@ -428,10 +428,133 @@ def reindex():
     global _vectors
     _vectors = []
     _bm["n"] = 0
+# ========== 章节浏览工具 ==========
+def outline() -> str:
+    """列出 docs 下每个文件的标题结构"""
+    lines = []
+    for f in sorted(DOCS.rglob("*")):
+        if f.suffix.lower() not in {".md", ".txt"}:
+            continue
+        heads = [
+            l.strip()
+            for l in f.read_text(encoding="utf-8", errors="replace").splitlines()
+            if l.strip().startswith("#")
+        ]
+        if heads:
+            lines.append("[" + f.name + "] " + " / ".join(h.lstrip("#").strip() for h in heads[:40]))
+    return "\n".join(lines) or "没有找到标题"
 
-    
+
+def read_section(file: str, heading: str) -> str:
+    """按标题读取某个文档里的一整节"""
+    target = (DOCS / file).resolve()
+    if DOCS not in target.parents:
+        return "错误：只能访问 docs 目录"
+    if not target.is_file():
+        return "错误：文件不存在 " + file
+
+    lines = target.read_text(encoding="utf-8", errors="replace").splitlines()
+    start = None
+    for i, l in enumerate(lines):
+        if l.strip().startswith("#") and heading in l:
+            start = i
+            break
+    if start is None:
+        return "没找到标题包含「" + heading + "」的章节"
+
+    out = []
+    for l in lines[start:]:
+        if out and l.strip().startswith("#"):
+            break
+        out.append(l)
+    return "\n".join(out).strip()[:3500]
+
+
+TOOLS.append(
+    {
+        "type": "function",
+        "function": {
+            "name": "outline",
+            "description": "列出 docs 下所有文档的章节标题。查流程类问题时（接下来该干嘛、第几章怎么走）先用它看目录",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    }
+)
+
+TOOLS.append(
+    {
+        "type": "function",
+        "function": {
+            "name": "read_section",
+            "description": "按标题读取某个文档里的一整节内容。先用 outline 拿到文件名和标题，再调用本工具",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file": {"type": "string", "description": "文件名，例如 神之天平攻略.md"},
+                    "heading": {"type": "string", "description": "章节标题关键词，例如 第六章"},
+                },
+                "required": ["file", "heading"],
+            },
+        },
+    }
+)
+
+REGISTRY["outline"] = outline
+REGISTRY["read_section"] = read_section
+
+SYSTEM = SYSTEM + (
+    " 如果检索到的内容不足以回答流程类问题（例如「接下来该干嘛」「第几章怎么走」），"
+    "必须先调用 outline 列出章节，再用 read_section 读取对应的整节，然后作答。"
+)
+
+def grep_docs(keyword: str, max_hits: int = 8) -> str:
+    """在 docs 里按关键词逐行搜索，返回文件 + 章节 + 命中行"""
+    hits = []
+    for f in sorted(DOCS.rglob("*")):
+        if f.suffix.lower() not in {".md", ".txt"}:
+            continue
+        heading = ""
+        text = f.read_text(encoding="utf-8", errors="replace")
+        for line in text.splitlines():
+            s = line.strip()
+            if s.startswith("#"):
+                heading = s.lstrip("#").strip()
+                continue
+            if keyword in s:
+                hits.append(f.name + " [" + heading + "] " + s[:80])
+                if len(hits) >= max_hits:
+                    return "\n".join(hits)
+    return "\n".join(hits) or "没有找到包含「" + keyword + "」的行"
+
+
+TOOLS.append(
+    {
+        "type": "function",
+        "function": {
+            "name": "grep_docs",
+            "description": "按关键词在文档里逐行搜索，返回命中的文件、所在章节和那一行。适合查「某个名词在哪一节」。比 outline 更精确，建议优先用它",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "keyword": {"type": "string", "description": "关键词，例如 墓地、耳环、独角兽"}
+                },
+                "required": ["keyword"],
+            },
+        },
+    }
+)
+
+REGISTRY["grep_docs"] = grep_docs
+
+SYSTEM = SYSTEM + (
+    " 查不到时，先调用 grep_docs 用关键词定位它在哪一节，再用 read_section 读那一节，"
+    "不要凭章节名猜。"
+)
 if __name__ == "__main__":
     chat()
+    
+
+
 
 
 
