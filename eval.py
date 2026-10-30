@@ -40,3 +40,6 @@ print("-" * 60)
 print(f"正例召回: {pos_ok}/{pos_all}")
 print(f"负例正确拒答: {neg_ok}/{neg_all}")
 print(f"总分: {pos_ok + neg_ok}/{pos_all + neg_all}")
+rate = pos_ok / pos_all if pos_all else 0
+if rate < 0.90:
+    raise SystemExit("检索召回 " + format(rate, ".0%") + " 低于 90%，回归失败")
