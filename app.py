@@ -202,10 +202,12 @@ if q:
     with st.chat_message("user"):
         st.markdown(q)
 
-    with st.chat_message("assistant"):
-        ph = st.empty()
+        with st.chat_message("assistant"):
+         ph = st.empty()
         ph.markdown("正在检索……")
+        t0 = time.time()
         reply, trace = run(st.session_state.history, ph)
+        elapsed = time.time() - t0
 
         if trace:
             with st.expander("查看工具调用"):
@@ -213,6 +215,11 @@ if q:
                     st.code(name + "(" + json.dumps(args, ensure_ascii=False) + ")")
 
         ph.markdown(reply)
+        est = int(
+            (sum(len(str(m.get("content") or "")) for m in st.session_state.history) + len(reply))
+            / 1.5
+        )
+        st.caption("⏱ " + format(elapsed, ".1f") + "s · 约 " + str(est) + " tokens")
 
     st.session_state.chat.append({"role": "assistant", "content": reply})
     store.add_message(st.session_state.sid, "user", q)
