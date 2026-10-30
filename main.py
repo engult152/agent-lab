@@ -380,7 +380,7 @@ def _bm25_scores(query: str) -> list:
 
 BM_WEIGHT = 0.7
 COS_FLOOR = 0.35
-FINAL_FLOOR = 0.50
+FINAL_FLOOR = 0.60
 
 def search_docs_hybrid(query: str, top_k: int = TOP_K, pool: int = 20) -> str:
     _load_vectors()
@@ -432,5 +432,8 @@ def reindex():
     
 if __name__ == "__main__":
     chat()
+
+
+
 
 
