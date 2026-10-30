@@ -382,6 +382,40 @@ BM_WEIGHT = 0.7
 COS_FLOOR = 0.35
 FINAL_FLOOR = 0.60
 
+USE_RERANK = False
+RERANK_MODEL = "BAAI/bge-reranker-v2-m3"
+RERANK_KEEP = 0.5
+
+
+def _rerank(query, items, top_n):
+    """items: [(原索引, 文本)]，返回按 rerank 分数排序后的原索引列表"""
+    import requests
+
+    r = requests.post(
+        "https://api.siliconflow.cn/v1/rerank",
+        headers={"Authorization": "Bearer " + os.environ["SILICONFLOW_API_KEY"]},
+        json={
+            "model": RERANK_MODEL,
+            "query": query,
+            "documents": [t[:1000] for _, t in items],
+            "top_n": len(items),
+        },
+        timeout=25,
+    )
+    r.raise_for_status()
+    res = r.json()["results"]
+    if not res:
+        return []
+
+    top = res[0]["relevance_score"] or 1e-9
+    out = []
+    for o in res:
+        if o["relevance_score"] >= top * RERANK_KEEP:
+            out.append(items[o["index"]][0])
+        if len(out) >= top_n:
+            break
+    return out
+
 def search_docs_hybrid(query: str, top_k: int = TOP_K, pool: int = 20) -> str:
     _load_vectors()
     if not _vectors:
@@ -399,7 +433,7 @@ def search_docs_hybrid(query: str, top_k: int = TOP_K, pool: int = 20) -> str:
     else:
         bm_rank = sorted(range(len(bm)), key=lambda i: -bm[i])[:pool]
 
-        rrf = collections.Counter()
+    rrf = collections.Counter()
     for r, i in enumerate(vec_rank):
         rrf[i] += 1.0 / (60 + r + 1)
     for r, i in enumerate(bm_rank):
@@ -409,15 +443,23 @@ def search_docs_hybrid(query: str, top_k: int = TOP_K, pool: int = 20) -> str:
     if not rrf:
         return "没有找到语义足够相关的内容"
 
-    picked = [i for i, _ in rrf.most_common(top_k)]
-    picked = [i for i in picked if cos[i] >= FINAL_FLOOR]
-    if not picked:
+    cand = [i for i, _ in rrf.most_common(pool)]
+    cand = [i for i in cand if cos[i] >= COS_FLOOR]
+    if not cand:
         return "没有找到语义足够相关的内容"
-        best = max((cos[i] for i in picked), default=0.0)
+
+    picked = [i for i in cand[:top_k] if cos[i] >= FINAL_FLOOR] or cand[:top_k]
+
+    if USE_RERANK and len(cand) > 1:
+        try:
+            picked = _rerank(q, [(i, _vectors[i][2]) for i in cand], top_k) or picked
+        except Exception as e:
+            print("   rerank 失败，回退粗排：", str(e)[:60])
+
+    best = max((cos[i] for i in picked), default=0.0)
     body = "\n\n".join(
         f"【{_vectors[i][0]} 第{_vectors[i][1] + 1}段】{_vectors[i][2][:800]}" for i in picked
     )
-    best = max((cos[i] for i in picked), default=0.0)
     if best < 0.65:
         body = (
             "（提示：本次检索置信度较低（最高 %.2f），可能没有覆盖到正确段落。"
@@ -572,6 +614,7 @@ SYSTEM = """你是一个助手，帮用户查他自己文档里的内容。
 if __name__ == "__main__":
     chat()
     
+
 
 
 
