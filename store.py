@@ -54,3 +54,11 @@ def load_messages(sid):
         return c.execute(
             "SELECT role, content FROM messages WHERE session_id=? ORDER BY id", (sid,)
         ).fetchall()
+
+
+def list_sessions(limit=10):
+    with _conn() as c:
+        return c.execute(
+            "SELECT id, title, created_at FROM sessions ORDER BY id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()

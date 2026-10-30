@@ -163,6 +163,17 @@ with st.sidebar:
                     st.rerun()
                 except Exception as e:
                     st.error("删除失败：" + str(e))
+    with st.expander("历史会话"):
+        for sid, title, created in store.list_sessions(10):
+            label = (title or "空对话")[:14] + "  " + (created or "")[5:16].replace("T", " ")
+            if st.button(label, key="sess_" + str(sid), use_container_width=True):
+                rows = store.load_messages(sid)
+                st.session_state.sid = sid
+                st.session_state.chat = [{"role": r, "content": c} for r, c in rows]
+                st.session_state.history = [{"role": "system", "content": SYSTEM}] + [
+                    {"role": r, "content": c} for r, c in rows
+                ]
+                st.rerun()
     if st.button("新对话", use_container_width=True):
         st.session_state.sid = store.new_session()
         st.session_state.chat = []
