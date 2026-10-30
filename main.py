@@ -322,6 +322,101 @@ def chat():
         print("\nAgent:", run_turn(messages), "\n")
 
 
+
+# ========== 混合检索：BM25 + 向量，RRF 融合 ==========
+import collections
+
+_bm = {"df": {}, "docs": [], "len": [], "avgdl": 0.0, "n": 0}
+
+
+def _tokenize(text: str) -> list:
+    toks = re.findall(r"[a-z0-9_]+", text.lower())
+    for h in re.findall(r"[\u4e00-\u9fff]+", text):
+        if len(h) == 1:
+            toks.append(h)
+        else:
+            toks.extend(h[i : i + 2] for i in range(len(h) - 1))
+    return toks
+
+
+def _build_bm25():
+    if _bm["n"]:
+        return
+    docs = [_tokenize(v[2]) for v in _vectors]
+    df = collections.Counter()
+    for d in docs:
+        df.update(set(d))
+    _bm["df"] = df
+    _bm["docs"] = docs
+    _bm["len"] = [len(d) for d in docs]
+    _bm["avgdl"] = sum(_bm["len"]) / max(1, len(docs))
+    _bm["n"] = len(docs)
+
+
+def _bm25_scores(query: str) -> list:
+    _build_bm25()
+    k1, b = 1.5, 0.75
+    qt = _tokenize(query)
+    n = _bm["n"]
+    scores = []
+    for i, d in enumerate(_bm["docs"]):
+        tf = collections.Counter(d)
+        s = 0.0
+        for t in qt:
+            f = tf.get(t)
+            if not f:
+                continue
+            dfi = _bm["df"].get(t, 0)
+            idf = math.log(1 + (n - dfi + 0.5) / (dfi + 0.5))
+            s += idf * f * (k1 + 1) / (f + k1 * (1 - b + b * _bm["len"][i] / _bm["avgdl"]))
+        scores.append(s)
+    return scores
+
+BM_WEIGHT = 0.7
+COS_FLOOR = 0.35
+FINAL_FLOOR = 0.50
+
+def search_docs_hybrid(query: str, top_k: int = TOP_K, pool: int = 20) -> str:
+    _load_vectors()
+    if not _vectors:
+        return "docs 目录里没有可检索的内容"
+
+    q = _rewrite(query)
+    qv = emb_client.embeddings.create(model=EMB_MODEL, input=[q]).data[0].embedding
+
+    cos = [_cos(qv, v[3]) for v in _vectors]
+    vec_rank = sorted(range(len(cos)), key=lambda i: -cos[i])[:pool]
+
+    bm = _bm25_scores(q)
+    if max(bm or [0]) <= 0:
+        bm_rank = []
+    else:
+        bm_rank = sorted(range(len(bm)), key=lambda i: -bm[i])[:pool]
+
+        rrf = collections.Counter()
+    for r, i in enumerate(vec_rank):
+        rrf[i] += 1.0 / (60 + r + 1)
+    for r, i in enumerate(bm_rank):
+        if cos[i] >= COS_FLOOR:
+            rrf[i] += BM_WEIGHT / (60 + r + 1)
+
+    if not rrf:
+        return "没有找到语义足够相关的内容"
+
+    picked = [i for i, _ in rrf.most_common(top_k)]
+    picked = [i for i in picked if cos[i] >= FINAL_FLOOR]
+    if not picked:
+        return "没有找到语义足够相关的内容"
+    return "\n\n".join(
+        f"【{_vectors[i][0]} 第{_vectors[i][1] + 1}段】{_vectors[i][2][:800]}" for i in picked
+    )
+
+search_docs = search_docs_hybrid
+
+
+
+REGISTRY["search_docs"] = search_docs_hybrid
+
 if __name__ == "__main__":
     chat()
 
