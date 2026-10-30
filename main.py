@@ -417,6 +417,7 @@ def search_docs_hybrid(query: str, top_k: int = TOP_K, pool: int = 20) -> str:
     body = "\n\n".join(
         f"【{_vectors[i][0]} 第{_vectors[i][1] + 1}段】{_vectors[i][2][:800]}" for i in picked
     )
+    best = max((cos[i] for i in picked), default=0.0)
     if best < 0.65:
         body = (
             "（提示：本次检索置信度较低（最高 %.2f），可能没有覆盖到正确段落。"

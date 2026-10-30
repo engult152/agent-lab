@@ -37,16 +37,21 @@ def parse(txt):
 
 def judge(q, ref, ans):
     prompt = f"问题：{q}\n\n【资料原文】\n{ref}\n\n【回答】\n{ans}"
-    r = judge_client.chat.completions.create(
-        model=JUDGE_MODEL,
-        timeout=60,
-        messages=[
-            {"role": "system", "content": JUDGE},
-            {"role": "user", "content": prompt},
-        ],
-        temperature=0,
-    )
-    return parse(r.choices[0].message.content.strip())
+    for attempt in range(3):
+        try:
+            r = judge_client.chat.completions.create(
+                model=JUDGE_MODEL,
+                timeout=90,
+                messages=[
+                    {"role": "system", "content": JUDGE},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0,
+            )
+            return parse(r.choices[0].message.content.strip())
+        except Exception as e:
+            print("   裁判失败，重试", attempt + 1, str(e)[:50])
+    return {"verdict": "unknown", "reason": "裁判请求连续失败"}
 
 
 passed = 0
