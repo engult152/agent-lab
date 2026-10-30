@@ -1,4 +1,6 @@
-﻿import json
+﻿
+from pathlib import Path
+import json
 import time
 
 import streamlit as st
@@ -132,6 +134,16 @@ with st.sidebar:
     st.subheader("状态")
     st.metric("文档段落", len(main._chunks()))
     st.caption("修改 docs 里的文件后，重启页面即可生效")
+    st.divider()
+    up = st.file_uploader("添加文档", type=["md", "txt", "pdf"])
+    if up is not None:
+        try:
+            target = Path("docs") / up.name
+            target.write_bytes(up.getbuffer())
+            main.reindex()
+            st.success("已添加：" + up.name)
+        except Exception as e:
+            st.error("添加失败：" + str(e))
     if st.button("清空对话", use_container_width=True):
         st.session_state.chat = []
         st.session_state.history = [{"role": "system", "content": SYSTEM}]

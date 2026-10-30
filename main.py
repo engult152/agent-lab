@@ -272,6 +272,12 @@ REGISTRY = {
     "read_file": read_file,
 }
 
+def reindex():
+    """清空内存索引，下次检索时重建（新增/修改文档后调用）"""
+    global _vectors
+    _vectors = []
+    _bm["n"] = 0
+
 
 # ---------------- Agent 循环 ----------------
 def run_turn(messages, max_steps=8):
@@ -417,6 +423,14 @@ search_docs = search_docs_hybrid
 
 REGISTRY["search_docs"] = search_docs_hybrid
 
+def reindex():
+    """清空内存索引，下次检索时重建（新增/修改文档后调用）"""
+    global _vectors
+    _vectors = []
+    _bm["n"] = 0
+
+    
 if __name__ == "__main__":
     chat()
+
 
