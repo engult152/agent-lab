@@ -11,8 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
-        with:
-          python-version: "3.12"
+        
       - name: Install
         run: uv sync --frozen
       - name: Retrieval eval
