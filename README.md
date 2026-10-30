@@ -105,7 +105,7 @@ CI：每次 push 自动跑 `eval.py`，**召回低于 90% 直接失败**。
 - 「接下来该干嘛」这类流程问题，答案散落在长段落里，召回率低于事实类问题（靠 grep + read_section 兜底）
 - 只支持 md / txt / PDF，不支持 docx、网页
 - 云端重启后**上传的文档**会丢失（Streamlit Cloud 用临时文件系统）；会话已通过 Turso 持久化
-- 多用户共用同一份知识库，没有做隔离
+- 多用户**会话**已隔离（URL 中的 uid），但知识库文档仍共用一份
 - GitHub README 的图片在国内加载不出来（`raw.githubusercontent.com` 不可达）
 
 ## 目录结构
