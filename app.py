@@ -19,7 +19,112 @@ except Exception:
 import main  # noqa: E402
 import store  # noqa: E402
 
-st.set_page_config(page_title="笔记助手", page_icon="📚", layout="centered")
+st.set_page_config(page_title="引文 · 资料问答", page_icon="📖", layout="centered")
+
+_CSS = """
+<style>
+:root{
+  --bg:#eef5f0;          /* 浅薄荷底 */
+  --surface:#ffffff;
+  --ink:#12233a;         /* 深藏青文字 */
+  --muted:#5b6b7c;
+  --mint:#ddf0e6;        /* 浅薄荷块 */
+  --mint-deep:#b9e2cd;
+  --accent:#3f8f6b;      /* 少量强调 */
+  --shadow-sm:0 2px 6px rgba(18,35,58,.05), 0 1px 2px rgba(18,35,58,.04);
+  --shadow-md:0 12px 32px rgba(18,35,58,.08), 0 2px 8px rgba(18,35,58,.04);
+}
+.stApp{
+  background:
+    radial-gradient(900px 500px at 12% -8%, #e4f3ea 0%, rgba(228,243,234,0) 60%),
+    radial-gradient(800px 520px at 92% 4%, #eaf1fb 0%, rgba(234,241,251,0) 62%),
+    var(--bg);
+}
+html,body{font-family:"PingFang SC","HarmonyOS Sans SC","MiSans","Microsoft YaHei",system-ui,sans-serif;}
+.block-container{padding-top:2.6rem;max-width:860px;}
+h1,h2,h3{letter-spacing:-.015em;color:var(--ink);font-weight:700;}
+p,li{line-height:1.8;color:var(--ink);}
+
+/* 顶部标题：宋体 + 印章徽标 */
+.hero{display:flex;gap:16px;align-items:center;margin:0 0 26px;}
+.hero .mark{
+  width:54px;height:54px;border-radius:12px;
+  background:#a8402f;color:#fff;
+  font-family:"Source Han Serif SC","Noto Serif SC","Songti SC","SimSun",serif;
+  font-size:28px;font-weight:700;line-height:1;
+  display:flex;align-items:center;justify-content:center;flex:0 0 auto;
+  transform:rotate(-2deg);
+  box-shadow:inset 0 0 0 2px rgba(255,255,255,.22), var(--shadow-md);
+}
+.hero h1{
+  margin:0;font-size:32px;font-weight:700;letter-spacing:.04em;
+  font-family:"Source Han Serif SC","Noto Serif SC","Songti SC","SimSun",serif;
+}
+.hero p{margin:6px 0 0;color:var(--muted);font-size:14px;letter-spacing:.01em;}
+
+/* 侧边栏 */
+section[data-testid="stSidebar"]{background:rgba(255,255,255,.72);border-right:none;
+  box-shadow:1px 0 0 rgba(18,35,58,.05);backdrop-filter:blur(8px);}
+section[data-testid="stSidebar"] .block-container{padding-top:1.6rem;}
+[data-testid="stMetricValue"]{font-size:40px;font-weight:700;color:var(--ink);letter-spacing:-.02em;}
+[data-testid="stMetricLabel"]{color:var(--muted);}
+
+/* 消息：白色浮起卡片 */
+[data-testid="stChatMessage"]{
+  background:var(--surface);border-radius:22px;padding:1rem 1.15rem;margin:.55rem 0;
+  box-shadow:var(--shadow-sm);
+}
+[data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]){
+  background:var(--mint);box-shadow:none;
+}
+[data-testid="stChatMessage"] p{margin:.25rem 0;}
+
+/* 输入框：统一圆角，去掉内外两层不一致的角 */
+[data-testid="stBottom"], [data-testid="stBottom"] > div{background:transparent!important;}
+[data-testid="stChatInput"]{
+  border:none;border-radius:16px;background:var(--surface);box-shadow:var(--shadow-md);
+}
+[data-testid="stChatInput"] > div{
+  border-radius:16px!important;background:transparent!important;box-shadow:none!important;
+}
+[data-testid="stChatInput"] textarea{
+  border-radius:16px!important;background:transparent!important;box-shadow:none!important;
+}
+[data-testid="stChatInput"] button{border-radius:12px!important;}
+[data-testid="stChatInput"]:focus-within{box-shadow:0 0 0 3px var(--mint-deep), var(--shadow-md);}
+
+/* 按钮：药丸 */
+.stButton>button{
+  border-radius:999px;border:none;background:var(--surface);color:var(--ink);
+  box-shadow:var(--shadow-sm);padding:.5rem 1.05rem;font-weight:500;
+  transition:transform .18s cubic-bezier(.2,.8,.2,1), box-shadow .18s;
+}
+.stButton>button:hover{transform:translateY(-1px);box-shadow:var(--shadow-md);color:var(--accent);}
+.stButton>button:active{transform:translateY(0);}
+
+/* 折叠面板 / 分割线 */
+[data-testid="stExpander"]{border:none;border-radius:18px;background:var(--surface);box-shadow:var(--shadow-sm);}
+[data-testid="stExpander"] summary{border-radius:18px;}
+hr{border:none;height:1px;background:rgba(18,35,58,.06);}
+
+/* 上传区 */
+[data-testid="stFileUploaderDropzone"]{border:1.5px dashed var(--mint-deep);border-radius:18px;background:var(--surface);}
+
+/* 代码块 */
+code{background:var(--mint);color:#12402c;border-radius:6px;padding:.1rem .35rem;}
+pre{border-radius:16px;box-shadow:var(--shadow-sm);}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important;}}
+
+/* 只隐藏 Deploy 按钮；保留侧边栏开关和右上角菜单 */
+[data-testid="stAppDeployButton"]{display:none!important;}
+#MainMenu{visibility:hidden;}
+[data-testid="stHeader"]{background:transparent!important;}
+/* 侧边栏收起后的「展开」按钮一定要看得见 */
+[data-testid="stSidebarCollapsedControl"]{display:block!important;visibility:visible!important;z-index:999999;}
+</style>
+"""
+st.markdown(_CSS, unsafe_allow_html=True)
 
 _pwd = os.environ.get("APP_PASSWORD", "")
 if _pwd and not st.session_state.get("ok"):
@@ -29,8 +134,12 @@ if _pwd and not st.session_state.get("ok"):
         st.rerun()
     st.stop()
 
-st.title("📚 我的笔记助手")
-st.caption("基于 docs 目录的语义检索，回答会标明出处")
+st.markdown(
+    '<div class="hero"><div class="mark">引</div>'
+    "<div><h1>引文</h1>"
+    "<p>问你自己的资料，答案带原文出处 · 无出处不答</p></div></div>",
+    unsafe_allow_html=True,
+)
 
 
 def run(messages, placeholder, max_steps=8):
@@ -162,13 +271,15 @@ if "chat" not in st.session_state:
         {"role": r, "content": c} for r, c in saved
     ]
 
+DAILY_LIMIT = 10
+
 with st.sidebar:
     st.subheader("状态")
     st.metric(
         "文档段落",
         sum(1 for c in main._chunks() if c[3] in ("", st.session_state.uid)),
     )
-    st.caption("今日已用 " + str(store.usage_today()) + " / 80")
+    st.caption("今日已用 " + str(store.usage_today()) + " / " + str(DAILY_LIMIT))
     st.caption("修改 docs 里的文件后，重启页面即可生效")
 
     st.divider()
@@ -247,7 +358,6 @@ q = st.chat_input("问点什么，比如：401 错误怎么排查？")
 
 if q:
     main._UID.set(st.session_state.uid)
-    DAILY_LIMIT = 80
     if store.usage_today() >= DAILY_LIMIT:
         st.error("今天的调用次数已用完（上限 " + str(DAILY_LIMIT) + " 次），明天再来。")
         st.stop()
