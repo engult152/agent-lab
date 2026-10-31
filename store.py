@@ -4,7 +4,8 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-DB = Path(__file__).resolve().parent / "data" / "chat.db"
+_BASE = Path(__file__).resolve().parent
+DB = _BASE / "data" / "chat.db"
 TURSO_URL = os.environ.get("TURSO_URL", "").strip()
 TURSO_TOKEN = os.environ.get("TURSO_TOKEN", "").strip()
 
@@ -68,11 +69,15 @@ def _init():
     _run("CREATE TABLE IF NOT EXISTS usage(day TEXT PRIMARY KEY, n INTEGER)")
     _run(
         "CREATE TABLE IF NOT EXISTS files("
-        "owner TEXT, name TEXT, content TEXT, updated_at TEXT, "
-        "PRIMARY KEY(owner, name))"
+        "owner TEXT, name TEXT, content TEXT, is_binary INTEGER DEFAULT 0, "
+        "updated_at TEXT, PRIMARY KEY(owner, name))"
     )
     try:
         _run("ALTER TABLE sessions ADD COLUMN owner TEXT")
+    except Exception:
+        pass
+    try:
+        _run("ALTER TABLE files ADD COLUMN is_binary INTEGER DEFAULT 0")
     except Exception:
         pass
     _ready = True
@@ -148,24 +153,20 @@ def bump_usage():
         (today,),
     )
 
-def save_file(owner, name, content):
+def save_file(owner, name, content, is_binary=False):
     _init()
     _run(
-        "CREATE TABLE IF NOT EXISTS files("
-        "owner TEXT, name TEXT, content TEXT, updated_at TEXT, "
-        "PRIMARY KEY(owner, name))"
-    )
-    _run(
-        "INSERT INTO files(owner, name, content, updated_at) VALUES (?,?,?,?) "
+        "INSERT INTO files(owner, name, content, is_binary, updated_at) VALUES (?,?,?,?,?) "
         "ON CONFLICT(owner, name) DO UPDATE SET "
-        "content=excluded.content, updated_at=excluded.updated_at",
-        (owner, name, content, _now()),
+        "content=excluded.content, is_binary=excluded.is_binary, "
+        "updated_at=excluded.updated_at",
+        (owner, name, content, 1 if is_binary else 0, _now()),
     )
 
 
 def list_files(owner):
     _init()
-    return _rows("SELECT name, content FROM files WHERE owner=?", (owner,))
+    return _rows("SELECT name, content, is_binary FROM files WHERE owner=?", (owner,))
 
 
 def delete_file(owner, name):

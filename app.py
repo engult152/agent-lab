@@ -1,5 +1,6 @@
 
 from pathlib import Path
+import base64
 import json
 import time
 import uuid
@@ -138,12 +139,15 @@ if "uid" not in st.session_state:
 if "restored" not in st.session_state:
     st.session_state.restored = True
     changed = False
-    for _name, _content in store.list_files(st.session_state.uid):
+    for _name, _content, _is_bin in store.list_files(st.session_state.uid):
         _dir = Path("docs") / "uploads" / st.session_state.uid
         _dir.mkdir(parents=True, exist_ok=True)
         _p = _dir / _name
         if not _p.exists():
-            _p.write_text(_content, encoding="utf-8")
+            if _is_bin:
+                _p.write_bytes(base64.b64decode(_content))
+            else:
+                _p.write_text(_content, encoding="utf-8")
             changed = True
     if changed:
         main.reindex()
@@ -173,15 +177,24 @@ with st.sidebar:
         try:
             target = Path("docs") / "uploads" / st.session_state.uid / up.name
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(up.getbuffer())
-            if up.name.lower().endswith((".md", ".txt")):
+            raw = bytes(up.getbuffer())
+            target.write_bytes(raw)
+            if len(raw) > 3 * 1024 * 1024:
+                st.warning("文件超过 3MB，本次不持久化（重启后需重新上传）")
+            elif up.name.lower().endswith(".pdf"):
                 store.save_file(
                     st.session_state.uid,
                     up.name,
-                    target.read_text(encoding="utf-8", errors="replace"),
+                    base64.b64encode(raw).decode("ascii"),
+                    True,
                 )
             else:
-                st.warning("PDF 暂不持久化，重启后需重新上传")
+                store.save_file(
+                    st.session_state.uid,
+                    up.name,
+                    raw.decode("utf-8", errors="replace"),
+                    False,
+                )
             main.reindex()
             st.success("已添加：" + up.name)
         except Exception as e:
