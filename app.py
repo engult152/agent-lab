@@ -139,7 +139,9 @@ if "restored" not in st.session_state:
     st.session_state.restored = True
     changed = False
     for _name, _content in store.list_files(st.session_state.uid):
-        _p = Path("docs") / _name
+        _dir = Path("docs") / "uploads" / st.session_state.uid
+        _dir.mkdir(parents=True, exist_ok=True)
+        _p = _dir / _name
         if not _p.exists():
             _p.write_text(_content, encoding="utf-8")
             changed = True
@@ -158,7 +160,10 @@ if "chat" not in st.session_state:
 
 with st.sidebar:
     st.subheader("状态")
-    st.metric("文档段落", len(main._chunks()))
+    st.metric(
+        "文档段落",
+        sum(1 for c in main._chunks() if c[3] in ("", st.session_state.uid)),
+    )
     st.caption("今日已用 " + str(store.usage_today()) + " / 80")
     st.caption("修改 docs 里的文件后，重启页面即可生效")
 
@@ -166,7 +171,8 @@ with st.sidebar:
     up = st.file_uploader("添加文档", type=["md", "txt", "pdf"])
     if up is not None:
         try:
-            target = Path("docs") / up.name
+            target = Path("docs") / "uploads" / st.session_state.uid / up.name
+            target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(up.getbuffer())
             if up.name.lower().endswith((".md", ".txt")):
                 store.save_file(
@@ -185,6 +191,8 @@ with st.sidebar:
     with st.expander("知识库（点击展开）"):
         counts = {}
         for c in main._chunks():
+            if c[3] not in ("", st.session_state.uid):
+                continue
             counts[c[0]] = counts.get(c[0], 0) + 1
         for i, (name, n) in enumerate(counts.items()):
             col1, col2 = st.columns([6, 2])
@@ -225,6 +233,7 @@ for m in st.session_state.chat:
 q = st.chat_input("问点什么，比如：401 错误怎么排查？")
 
 if q:
+    main._UID.set(st.session_state.uid)
     DAILY_LIMIT = 80
     if store.usage_today() >= DAILY_LIMIT:
         st.error("今天的调用次数已用完（上限 " + str(DAILY_LIMIT) + " 次），明天再来。")
@@ -236,13 +245,12 @@ if q:
 
     with st.chat_message("user"):
         st.markdown(q)
-
         with st.chat_message("assistant"):
-         ph = st.empty()
-        ph.markdown("正在检索……")
-        t0 = time.time()
-        reply, trace = run(st.session_state.history, ph)
-        elapsed = time.time() - t0
+            ph = st.empty()
+            ph.markdown("正在检索……")
+            t0 = time.time()
+            reply, trace = run(st.session_state.history, ph)
+            elapsed = time.time() - t0
 
         if trace:
             with st.expander("查看工具调用"):

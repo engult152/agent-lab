@@ -1,5 +1,7 @@
-﻿"""agent-lab：一个能读你自己文档的本地 Agent"""
+"""agent-lab：一个能读你自己文档的本地 Agent"""
 
+
+import contextvars
 import os
 import numpy as np
 import json
@@ -18,6 +20,8 @@ load_dotenv()
 # ---------------- 配置 ----------------
 BASE = Path(__file__).resolve().parent
 DOCS = BASE / "docs"
+_UID = contextvars.ContextVar("uid", default="")
+UPLOADS = "uploads"
 CACHE = BASE / ".cache" / "vectors.json"
 
 CHAT_MODEL = "deepseek-chat"
@@ -90,7 +94,7 @@ def _markdown_pieces(path: Path):
 
 
 def _chunks():
-    """返回 [(文件名, 序号, 文本块)]"""
+    """返回 [(文件名, 序号, 文本块, owner)]；owner 为空表示公共文档"""
     chunks = []
     if not DOCS.is_dir():
         return chunks
@@ -98,6 +102,8 @@ def _chunks():
         suffix = f.suffix.lower()
         if suffix not in {".md", ".txt", ".pdf"}:
             continue
+        rel = f.relative_to(DOCS).parts
+        owner = rel[1] if len(rel) >= 3 and rel[0] == UPLOADS else ""
         try:
             pieces = _pdf_pieces(f) if suffix == ".pdf" else _markdown_pieces(f)
         except Exception as e:
@@ -105,7 +111,7 @@ def _chunks():
             continue
         for i, body in enumerate(pieces):
             if len(body) > 20:
-                chunks.append((f.name, i, body))
+                chunks.append((f.name, i, body, owner))
     return chunks
 
 
@@ -149,7 +155,7 @@ def _load_vectors():
     else:
         print("全部命中缓存，", len(store), "段")
 
-    _vectors = [(c[0], c[1], c[2], store[k]) for c, k in zip(chunks, keys)]
+        _vectors = [(c[0], c[1], c[2], store[k], c[3]) for c, k in zip(chunks, keys)]
 
 _STOP = [
     "我想知道", "请问", "帮我", "一下", "怎么样", "怎么办", "为什么",
@@ -190,6 +196,20 @@ def get_time() -> str:
     return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _file_owner(f: Path) -> str:
+    """文件归属：公共文档返回空串，uploads/<uid>/ 下返回 uid"""
+    try:
+        rel = f.resolve().relative_to(DOCS).parts
+    except Exception:
+        return ""
+    return rel[1] if len(rel) >= 3 and rel[0] == UPLOADS else ""
+
+
+def _visible(f: Path) -> bool:
+    """当前用户能否看到这个文件"""
+    return _file_owner(f) in ("", _UID.get())
+
+
 def list_files(subdir: str = ".") -> str:
     target = (BASE / subdir).resolve()
     if BASE != target and BASE not in target.parents:
@@ -198,7 +218,7 @@ def list_files(subdir: str = ".") -> str:
         return f"错误：{subdir} 不是目录"
     items = []
     for p in sorted(target.iterdir()):
-        if p.name in {".venv", "__pycache__", ".git", ".cache"}:
+        if p.name in {".venv", "__pycache__", ".git", ".cache", UPLOADS}:
             continue
         items.append(("[目录]" if p.is_dir() else "[文件]") + " " + p.name)
     return "\n".join(items) or "（空目录）"
@@ -210,6 +230,8 @@ def read_file(path: str) -> str:
         return "错误：只能访问项目目录内的文件"
     if not target.is_file():
         return f"错误：文件不存在 {path}"
+    if target.is_relative_to(DOCS) and not _visible(target):
+        return "错误：无权访问其他用户的文件"
     text = target.read_text(encoding="utf-8", errors="replace")
     if len(text) > 4000:
         return text[:4000] + f"\n\n...（已截断，原文共 {len(text)} 字符）"
@@ -477,7 +499,8 @@ def search_docs_hybrid(query: str, top_k: int = TOP_K, pool: int = 20) -> str:
         return "没有找到语义足够相关的内容"
 
     cand = [i for i, _ in rrf.most_common(pool)]
-    cand = [i for i in cand if cos[i] >= COS_FLOOR]
+    allow = {"", _UID.get()}
+    cand = [i for i in cand if cos[i] >= COS_FLOOR and _vectors[i][4] in allow]
     if not cand:
         return "没有找到语义足够相关的内容"
 
@@ -522,6 +545,8 @@ def outline() -> str:
     for f in sorted(DOCS.rglob("*")):
         if f.suffix.lower() not in {".md", ".txt"}:
             continue
+        if not _visible(f):
+            continue
         heads = [
             l.strip()
             for l in f.read_text(encoding="utf-8", errors="replace").splitlines()
@@ -537,6 +562,8 @@ def read_section(file: str, heading: str) -> str:
     target = (DOCS / file).resolve()
     if DOCS not in target.parents:
         return "错误：只能访问 docs 目录"
+    if not _visible(target):
+        return "错误：无权访问其他用户的文件"
     if not target.is_file():
         return "错误：文件不存在 " + file
 
@@ -599,6 +626,8 @@ def grep_docs(keyword: str, max_hits: int = 8) -> str:
     hits = []
     for f in sorted(DOCS.rglob("*")):
         if f.suffix.lower() not in {".md", ".txt"}:
+            continue
+        if not _visible(f):
             continue
         heading = ""
         text = f.read_text(encoding="utf-8", errors="replace")

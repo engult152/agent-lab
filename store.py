@@ -1,4 +1,4 @@
-﻿"""会话存储：本地 SQLite，或远程 Turso（设置 TURSO_URL 即切换）"""
+"""会话存储：本地 SQLite，或远程 Turso（设置 TURSO_URL 即切换）"""
 import os
 import sqlite3
 from datetime import datetime
@@ -26,16 +26,26 @@ def _remote():
     return _client
 
 
+def _retry(fn):
+    """远端连接偶尔被掐断（ServerDisconnected），重建客户端重试一次"""
+    global _client
+    try:
+        return fn()
+    except Exception:
+        _client = None
+        return fn()
+
+
 def _rows(sql, params=()):
     if TURSO_URL:
-        return [tuple(r) for r in _remote().execute(sql, list(params)).rows]
+        return _retry(lambda: [tuple(r) for r in _remote().execute(sql, list(params)).rows])
     with sqlite3.connect(DB) as c:
         return c.execute(sql, params).fetchall()
 
 
 def _run(sql, params=()):
     if TURSO_URL:
-        _remote().execute(sql, list(params))
+        _retry(lambda: _remote().execute(sql, list(params)))
         return
     with sqlite3.connect(DB) as c:
         c.execute(sql, params)
